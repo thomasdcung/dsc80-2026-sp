@@ -1,17 +1,9 @@
 # lab.py
 
-
-import os
 from pathlib import Path
 import io
-
 import pandas as pd
 import numpy as np
-from dotenv import load_dotenv
-
-# Load environment variables from .env file if it exists
-load_dotenv()
-
 np.set_printoptions(legacy='1.21')
 
 
@@ -111,22 +103,21 @@ def where_square(A):
 
 
 def filter_cutoff_loop(matrix, cutoff):
-    result= []
+    result = []
     numCols = len(matrix[0])
     numRows = len(matrix)
 
-    for m in range(numRows):
+    for n in range(numCols):          
         colSum = 0
-        
-        for n in range(numCols):
+        for m in range(numRows):      
             colSum += matrix[m][n]
         colMean = colSum / numRows
 
         if colMean > cutoff:
-            col = [matrix[m][n] for i in range(numRows)]
+            col = [matrix[m][n] for m in range(numRows)]
             result.append(col)
 
-    return result
+    return np.array(result).T  
 
 
 # ---------------------------------------------------------------------
