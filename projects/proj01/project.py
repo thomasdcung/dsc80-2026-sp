@@ -14,8 +14,7 @@ import plotly.express as px
 
 
 def get_assignment_names(grades):
-
-    filtered_grades = grades.drop(columns=[col for col in grades.columns if len(col.split(' ')) > 1])
+    filtered_grades = grades.drop(columns=[col for col in grades.columns if len(col.split(' ')) > 1 or "_free_response" in col])
 
     key = ['lab', 'project', 'midterm', 'final', 'disc', 'checkpoint']
     result = {k: [] for k in key}
@@ -39,15 +38,21 @@ def get_assignment_names(grades):
 
 
 def projects_total(grades):
-
     projects = get_assignment_names(grades)['project']
 
-    earned_cols = projects
-    max_cols = [col for col in grades.columns 
-                if any(p in col for p in projects) and 'Max Points' in col]
+    max_pts = []
+    earned_pts = []
+
+    for project in projects:
+        earned_pts.append(project)
+        max_pts.append(project + ' - Max Points')
+        if project + '_free_response' in grades.columns:
+            max_pts.append(project + '_free_response - Max Points')
+            earned_pts.append(project + '_free_response')
+            
     
-    earned = grades[earned_cols].sum(axis=1)
-    total = grades[max_cols].sum(axis=1)
+    earned = grades[earned_pts].fillna(0).sum(axis=1)
+    total = grades[max_pts].sum(axis=1)
     
     return earned / total
 
@@ -81,7 +86,18 @@ def lateness_penalty(col):
 
 
 def process_labs(grades):
-    ...
+    processed = pd.DataFrame()
+    labs = get_assignment_names(grades)['lab']
+ 
+    for lab in labs:
+        max_pts = lab + ' - Max Points'
+        penalties = lab + ' - Lateness (H:M:S)'
+        processed[lab] = (
+            grades[lab].fillna(0) / grades[max_pts]
+            * lateness_penalty(grades[penalties])
+        )
+ 
+    return processed
 
 
 # ---------------------------------------------------------------------
@@ -89,8 +105,8 @@ def process_labs(grades):
 # ---------------------------------------------------------------------
 
 
-def lab_total(processed):
-    ...
+def lab_total(processed_labs):
+    return (processed_labs.sum(axis=1) - processed_labs.min(axis=1)) / (processed_labs.shape[1] - 1)
 
 
 # ---------------------------------------------------------------------
@@ -99,7 +115,25 @@ def lab_total(processed):
 
 
 def total_points(grades):
-    ...
+    grades = grades.fillna(0)
+    lab_score = lab_total(process_labs(grades)) * 0.2
+    project_score = projects_total(grades) * 0.3
+    midterm_score = grades['Midterm'] / grades['Midterm - Max Points'] * 0.15
+    final_score = grades['Final'] / grades['Final - Max Points'] * 0.30
+
+    def component_score(component):
+        cols = get_assignment_names(grades)[component]
+        max_pts = []
+        for col in cols:
+            max_pts.append(col + ' - Max Points')
+        earned = grades[cols].fillna(0).sum(axis=1)
+        total = grades[max_pts].sum(axis=1)
+        return (earned / total) * 0.025
+
+    disc_score = component_score('disc')
+    checkpoint_score = component_score('checkpoint')
+    
+    return lab_score + project_score + midterm_score + final_score + disc_score + checkpoint_score
 
 
 # ---------------------------------------------------------------------
@@ -108,10 +142,32 @@ def total_points(grades):
 
 
 def final_grades(total):
-    ...
-
-def letter_proportions(total):
-    ...
+    conditions = [
+        total >= 0.9,
+        total >= 0.8,
+        total >= 0.7,
+        total >= 0.6
+    ]
+    choices = ['A', 'B', 'C', 'D']
+    return pd.Series(np.select(conditions, choices, default='F'), index=total.index)
+ 
+ 
+def letter_proportions(course_grades):
+    active = course_grades[course_grades > 0]
+    letters = final_grades(active)
+    counts = letters.value_counts().sort_values(ascending=False)
+    n = len(active)
+    
+    props = {}
+    running_sum = 0.0
+    for i, (letter, count) in enumerate(counts.items()):
+        if i == len(counts) - 1:
+            props[letter] = 1.0 - running_sum
+        else:
+            props[letter] = count / n
+            running_sum += props[letter]
+    
+    return pd.Series(props)
 
 
 # ---------------------------------------------------------------------
