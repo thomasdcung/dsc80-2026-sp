@@ -37,7 +37,12 @@ warnings.filterwarnings("ignore")
 
 
 def clean_loans(loans):
-    ...
+    loans = loans.copy()
+    loans['emp_title'] = loans['emp_title'].str.strip().str.lower().replace('rn', 'registered nurse')
+    loans['issue_d'] = pd.to_datetime(loans['issue_d'])
+    loans['term'] = loans['term'].apply(lambda x: int(x.strip().split(' ')[0]))
+    loans['term_end'] = loans.apply(lambda row: row['issue_d'] + pd.DateOffset(months=row['term']), axis=1)
+    return loans
 
 
 # ---------------------------------------------------------------------
@@ -45,8 +50,15 @@ def clean_loans(loans):
 # ---------------------------------------------------------------------
 
 
-def correlations(df, pairs):
-    ...
+def correlations(loans, pairs):
+    results = []
+    
+    for pair in pairs:
+        col1, col2 = pair
+        corr = loans[[col1, col2]].corr().iloc[0, 1]
+        results.append(('r_' + col1 + '_' + col2, corr))
+
+    return pd.Series(dict(results))
 
 
 # ---------------------------------------------------------------------
@@ -55,7 +67,17 @@ def correlations(df, pairs):
 
 
 def create_boxplot(loans):
-    ...
+    loans = loans.copy()
+    loans['fico_bin'] = pd.cut(loans['fico_range_low'], bins=[580, 670, 740, 800, 850], right=False)
+    fico_order = loans['fico_bin'].cat.categories.astype(str).tolist()
+    loans['fico_bin'] = loans['fico_bin'].astype(str)
+    
+    return px.box(loans, x='fico_bin', y='int_rate', color='term', color_discrete_map={36: 'red', 60: 'blue'},
+                  category_orders={'fico_bin': fico_order, 'term': sorted(loans['term'].unique())},
+                  labels={'fico_bin': 'Credit Score Range', 
+                          'int_rate': 'Interest Rate (%)', 
+                          'term': 'Loan Length (Months)'},
+                  title='Interest Rate vs. Credit Score')
 
 
 # ---------------------------------------------------------------------
@@ -64,13 +86,35 @@ def create_boxplot(loans):
 
 
 def ps_test(loans, N):
-    ...
+    loans = loans.copy()
+    loans['has_ps'] = loans['desc'].notna()
+    
+    observed_diff = (
+        loans.groupby('has_ps')['int_rate'].mean()[True] 
+        - loans.groupby('has_ps')['int_rate'].mean()[False]
+    )
+    
+    diffs = []
+    for _ in range(N):
+        shuffled = loans['has_ps'].sample(frac=1).reset_index(drop=True)
+        loans_copy = loans.copy()
+        loans_copy['has_ps'] = shuffled
+        diff = (
+            loans_copy.groupby('has_ps')['int_rate'].mean()[True]
+            - loans_copy.groupby('has_ps')['int_rate'].mean()[False]
+        )
+        diffs.append(diff)
+    
+    diffs = np.array(diffs)
+    return (diffs >= observed_diff).mean()
+ 
     
 def missingness_mechanism():
-    ...
+    return 2
     
 def other_missingness():
-    ...
+    return 1
+
 
 
 # ---------------------------------------------------------------------
