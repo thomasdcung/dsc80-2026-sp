@@ -14,7 +14,12 @@ import plotly.express as px
 
 
 def get_assignment_names(grades):
+<<<<<<< HEAD
     filtered_grades = grades.drop(columns=[col for col in grades.columns if len(col.split(' ')) > 1 or "_free_response" in col])
+=======
+
+    filtered_grades = grades.drop(columns=[col for col in grades.columns if len(col.split(' ')) > 1])
+>>>>>>> 7542e20 (lab01 and proj q3)
 
     key = ['lab', 'project', 'midterm', 'final', 'disc', 'checkpoint']
     result = {k: [] for k in key}
@@ -38,6 +43,7 @@ def get_assignment_names(grades):
 
 
 def projects_total(grades):
+<<<<<<< HEAD
     projects = get_assignment_names(grades)['project']
 
     max_pts = []
@@ -53,6 +59,17 @@ def projects_total(grades):
     
     earned = grades[earned_pts].fillna(0).sum(axis=1)
     total = grades[max_pts].sum(axis=1)
+=======
+
+    projects = get_assignment_names(grades)['project']
+
+    earned_cols = projects
+    max_cols = [col for col in grades.columns 
+                if any(p in col for p in projects) and 'Max Points' in col]
+    
+    earned = grades[earned_cols].sum(axis=1)
+    total = grades[max_cols].sum(axis=1)
+>>>>>>> 7542e20 (lab01 and proj q3)
     
     return earned / total
 
