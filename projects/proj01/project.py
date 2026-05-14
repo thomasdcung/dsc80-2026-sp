@@ -175,11 +175,26 @@ def letter_proportions(course_grades):
 # ---------------------------------------------------------------------
 
 
-def raw_redemption(final_breakdown, question_numbers):
-    ...
+def raw_redemption(final_breakdown, questions):
+    # Select redemption question columns (position-based: col at position i = Question i)
+    redemption_cols = [final_breakdown.columns[q] for q in questions]
     
-def combine_grades(grades, raw_redemption_scores):
-    ...
+    # Max points per question: assume at least one student got a perfect score
+    max_pts = final_breakdown[redemption_cols].max()
+    total_max = max_pts.sum()
+    
+    # Earned points (fill NaN with 0 for students who didn't take the final)
+    earned = final_breakdown[redemption_cols].fillna(0).sum(axis=1)
+    
+    return pd.DataFrame({
+        'PID': final_breakdown['PID'],
+        'Raw Redemption Score': earned / total_max
+    })
+
+
+def combine_grades(grades, raw_redemption_df):
+    # Merge on PID to ensure correct alignment
+    return grades.merge(raw_redemption_df[['PID', 'Raw Redemption Score']], on='PID', how='left')
 
 
 # ---------------------------------------------------------------------
@@ -187,11 +202,30 @@ def combine_grades(grades, raw_redemption_scores):
 # ---------------------------------------------------------------------
 
 
-def z_score(ser):
-    ...
-    
+def z_score(series):
+    return (series - series.mean()) / series.std(ddof=0)
+
+
 def add_post_redemption(grades_combined):
-    ...
+    midterm_raw = grades_combined['Midterm'].fillna(0) / grades_combined['Midterm - Max Points']
+    
+    midterm_z = z_score(midterm_raw)
+    redemption_z = z_score(grades_combined['Raw Redemption Score'])
+    
+    midterm_mean = midterm_raw.mean()
+    midterm_std = midterm_raw.std(ddof=0)
+    
+    # Where redemption z > midterm z, replace midterm score using redemption z
+    post_redemption = np.where(
+        redemption_z > midterm_z,
+        (redemption_z * midterm_std + midterm_mean).clip(upper=1.0),
+        midterm_raw
+    )
+    
+    return grades_combined.assign(**{
+        'Midterm Score Pre-Redemption': midterm_raw,
+        'Midterm Score Post-Redemption': post_redemption
+    })
 
 
 # ---------------------------------------------------------------------
@@ -200,11 +234,26 @@ def add_post_redemption(grades_combined):
 
 
 def total_points_post_redemption(grades_combined):
-    ...
-        
-def proportion_improved(grades_combined):
-    ...
+    pre = total_points(grades_combined)
+    
+    redemption_df = add_post_redemption(grades_combined)
+    midterm_pre = redemption_df['Midterm Score Pre-Redemption']
+    midterm_post = redemption_df['Midterm Score Post-Redemption']
+    
+    # Adjust total: remove old midterm contribution, add new one
+    return pre - (midterm_pre * 0.15) + (midterm_post * 0.15)
 
+
+def proportion_improved(grades_combined):
+    pre_letters = final_grades(total_points(grades_combined))
+    post_letters = final_grades(total_points_post_redemption(grades_combined))
+    
+    grade_order = {'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0}
+    
+    pre_rank = pre_letters.map(grade_order)
+    post_rank = post_letters.map(grade_order)
+    
+    return (post_rank > pre_rank).mean()
 
 # ---------------------------------------------------------------------
 # QUESTION 11
