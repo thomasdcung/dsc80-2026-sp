@@ -34,6 +34,8 @@ def question1():
  
 def extract_book_links(page_html):
 
+    RATING_MAP = {'One': 1, 'Two': 2, 'Three': 3, 'Four': 4, 'Five': 5}
+
     soup = bs4.BeautifulSoup(page_html, features='lxml')
     links = []
  
@@ -103,10 +105,7 @@ def get_product_info(page_html, categories):
  
  
 def scrape_books(k, categories):
-    """
-    Scrape the first k pages of books.toscrape.com and return a DataFrame of
-    books that have ≥4-star rating, price < £50, and category in `categories`.
-    """
+
     base_url = 'http://books.toscrape.com/catalogue/page-{}.html'
     book_base = 'http://books.toscrape.com/catalogue/'
  
@@ -140,6 +139,8 @@ def scrape_books(k, categories):
 # ---------------------------------------------------------------------
  
 def stock_history(symbol, year, month):
+
+    FMP_API_KEY = 'nQ9vhyRrSfCfTrHL8dDtHlmWZ3wfpJpJ'
 
     start = pd.Timestamp(year=year, month=month, day=1)
     end = start + pd.offsets.MonthEnd(1)
@@ -188,9 +189,10 @@ def stock_stats(df):
 # ---------------------------------------------------------------------
  
 def _fetch_item(item_id):
-
-    resp = requests.get(HN_URL.format(item_id))
+    hn_url = 'https://hacker-news.firebaseio.com/v0/item/{}.json'
+    resp = requests.get(hn_url.format(item_id))
     return resp.json()
+
  
  
 def _collect_comments(item_id, rows):
